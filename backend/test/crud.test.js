@@ -18,8 +18,10 @@ import { createApp } from "../app.js";
 
 const ddbMock = mockClient(DynamoDBDocumentClient);
 const app = createApp();
-const token = jwt.sign({ sub: "u1", username: "admin" }, "test-secret");
+const token = jwt.sign({ sub: "u1", username: "admin", role: "admin" }, "test-secret");
+const mechanicToken = jwt.sign({ sub: "u2", username: "mekaanikko", role: "mechanic" }, "test-secret");
 const auth = (req) => req.set("Authorization", `Bearer ${token}`);
+const mechanicAuth = (req) => req.set("Authorization", `Bearer ${mechanicToken}`);
 
 beforeEach(() => {
   ddbMock.reset();
@@ -39,6 +41,14 @@ describe("GET /api/assets", () => {
     assert.equal(res.status, 200);
     assert.deepEqual(res.body, [{ id: "a1", name: "Trukki" }]);
   });
+
+  test("mekaanikko saa myös listata", async () => {
+    ddbMock.on(ScanCommand, { TableName: "eam-assets" }).resolves({
+      Items: [{ id: "a1", name: "Trukki" }],
+    });
+    const res = await mechanicAuth(request(app).get("/api/assets"));
+    assert.equal(res.status, 200);
+  });
 });
 
 describe("GET /api/assets/:id", () => {
@@ -57,12 +67,17 @@ describe("GET /api/assets/:id", () => {
 });
 
 describe("POST /api/assets", () => {
-  test("luo kohteen ja palauttaa 201", async () => {
+  test("luo kohteen ja palauttaa 201 adminina", async () => {
     ddbMock.on(PutCommand).resolves({});
     const res = await auth(request(app).post("/api/assets")).send({ name: "Uusi kone" });
     assert.equal(res.status, 201);
     assert.equal(res.body.name, "Uusi kone");
     assert.ok(res.body.id);
+  });
+
+  test("mekaanikko ei saa luoda työkonetta (403)", async () => {
+    const res = await mechanicAuth(request(app).post("/api/assets")).send({ name: "Uusi kone" });
+    assert.equal(res.status, 403);
   });
 });
 
@@ -80,6 +95,11 @@ describe("PUT /api/assets/:id", () => {
     assert.equal(res.status, 200);
     assert.equal(res.body.status, "ok");
   });
+
+  test("mekaanikko ei saa päivittää työkonetta (403)", async () => {
+    const res = await mechanicAuth(request(app).put("/api/assets/a1")).send({ status: "ok" });
+    assert.equal(res.status, 403);
+  });
 });
 
 describe("DELETE /api/assets/:id", () => {
@@ -93,5 +113,10 @@ describe("DELETE /api/assets/:id", () => {
     ddbMock.on(DeleteCommand).resolves({});
     const res = await auth(request(app).delete("/api/assets/unknown"));
     assert.equal(res.status, 404);
+  });
+
+  test("mekaanikko ei saa poistaa työkonetta (403)", async () => {
+    const res = await mechanicAuth(request(app).delete("/api/assets/a1"));
+    assert.equal(res.status, 403);
   });
 });

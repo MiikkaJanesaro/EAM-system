@@ -6,6 +6,7 @@ const NAV_ITEMS = [
   { to: "/assets", label: "Työkoneet", icon: "⚙" },
   { to: "/locations", label: "Toimipaikat", icon: "◈" },
   { to: "/inventory", label: "Varasto", icon: "▤" },
+  { to: "/settings", label: "Asetukset", icon: "⛭" },
 ];
 
 export function Layout() {
@@ -38,7 +39,14 @@ export function Layout() {
           ))}
         </nav>
         <div className="sidebar-footer">
-          <div className="sidebar-user">{user?.name}</div>
+          <div className="sidebar-user">
+            {user?.name}
+            {user?.role && (
+              <span className="sidebar-role">
+                {user.role === "admin" ? "Pääkäyttäjä" : "Mekaanikko"}
+              </span>
+            )}
+          </div>
           <button className="logout-btn" onClick={handleLogout}>
             Kirjaudu ulos
           </button>

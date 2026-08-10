@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client.js";
 import { StatusPill } from "../components/StatusPill.jsx";
 import { Modal } from "../components/Modal.jsx";
+import { useAuth } from "../context/AuthContext.jsx";
 
 export function AssetDetail() {
   const { id } = useParams();
@@ -15,6 +16,7 @@ export function AssetDetail() {
   const [editForm, setEditForm] = useState(null);
   const [woForm, setWoForm] = useState(null);
   const [saving, setSaving] = useState(false);
+  const { isAdmin } = useAuth();
 
   function load() {
     setLoading(true);
@@ -80,27 +82,29 @@ export function AssetDetail() {
           <h1 className="page-title" style={{ marginBottom: 0 }}>{asset.name}</h1>
           <StatusPill status={asset.status} />
         </div>
-        <div className="actions-row">
-          <button
-            className="btn btn-secondary"
-            onClick={() =>
-              setEditForm({
-                name: asset.name,
-                type: asset.type,
-                status: asset.status,
-                locationId: asset.locationId,
-                serialNumber: asset.serialNumber,
-                purchaseDate: asset.purchaseDate,
-                notes: asset.notes || "",
-              })
-            }
-          >
-            Muokkaa
-          </button>
-          <button className="btn btn-danger" onClick={handleDeleteAsset}>
-            Poista
-          </button>
-        </div>
+        {isAdmin && (
+          <div className="actions-row">
+            <button
+              className="btn btn-secondary"
+              onClick={() =>
+                setEditForm({
+                  name: asset.name,
+                  type: asset.type,
+                  status: asset.status,
+                  locationId: asset.locationId,
+                  serialNumber: asset.serialNumber,
+                  purchaseDate: asset.purchaseDate,
+                  notes: asset.notes || "",
+                })
+              }
+            >
+              Muokkaa
+            </button>
+            <button className="btn btn-danger" onClick={handleDeleteAsset}>
+              Poista
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="tabs">
@@ -148,6 +152,7 @@ export function AssetDetail() {
           emptyText="Ei vielä tehtyjä huoltotöitä."
           onAdd={() => setWoForm({ kind: "done", title: "", description: "", date: "", status: "completed" })}
           addLabel="+ Kirjaa tehty huolto"
+          onAttachmentAdded={load}
         />
       )}
 
@@ -157,6 +162,7 @@ export function AssetDetail() {
           emptyText="Ei suunniteltuja huoltoja."
           onAdd={() => setWoForm({ kind: "scheduled", title: "", description: "", date: "", status: "scheduled" })}
           addLabel="+ Lisää suunniteltu huolto"
+          onAttachmentAdded={load}
         />
       )}
 
@@ -236,7 +242,7 @@ export function AssetDetail() {
   );
 }
 
-function WorkorderTable({ items, emptyText, onAdd, addLabel }) {
+function WorkorderTable({ items, emptyText, onAdd, addLabel, onAttachmentAdded }) {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
@@ -255,6 +261,7 @@ function WorkorderTable({ items, emptyText, onAdd, addLabel }) {
                 <th>Kuvaus</th>
                 <th>Päivämäärä</th>
                 <th>Tila</th>
+                <th>Liitteet</th>
               </tr>
             </thead>
             <tbody>
@@ -267,12 +274,70 @@ function WorkorderTable({ items, emptyText, onAdd, addLabel }) {
                     <td>{w.description || "—"}</td>
                     <td className="mono">{w.date}</td>
                     <td>{w.status}</td>
+                    <td>
+                      <AttachmentCell workorder={w} onAttachmentAdded={onAttachmentAdded} />
+                    </td>
                   </tr>
                 ))}
             </tbody>
           </table>
         </div>
       )}
+    </div>
+  );
+}
+
+function AttachmentCell({ workorder, onAttachmentAdded }) {
+  const [uploading, setUploading] = useState(false);
+
+  async function handleFileChange(e) {
+    const file = e.target.files[0];
+    e.target.value = "";
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      const { key, uploadUrl } = await api.attachmentUploadUrl(workorder.id, file.name, file.type);
+      const putRes = await fetch(uploadUrl, {
+        method: "PUT",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      if (!putRes.ok) throw new Error("Kuvan lataus S3:aan epäonnistui.");
+      await api.confirmAttachment(workorder.id, key, file.name);
+      onAttachmentAdded?.();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+      {(workorder.attachments || []).map((a) => (
+        <a key={a.key} href={a.url} target="_blank" rel="noreferrer" title={a.filename}>
+          {a.url && a.filename?.match(/\.(jpe?g|png|gif|webp)$/i) ? (
+            <img
+              src={a.url}
+              alt={a.filename}
+              style={{ width: 32, height: 32, objectFit: "cover", borderRadius: 4 }}
+            />
+          ) : (
+            "📎"
+          )}
+        </a>
+      ))}
+      <label className="btn btn-secondary" style={{ padding: "4px 8px", fontSize: "0.8rem", cursor: "pointer" }}>
+        {uploading ? "Ladataan…" : "+ Kuva"}
+        <input
+          type="file"
+          accept="image/*"
+          onChange={handleFileChange}
+          disabled={uploading}
+          style={{ display: "none" }}
+        />
+      </label>
     </div>
   );
 }

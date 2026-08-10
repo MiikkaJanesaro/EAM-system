@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../api/client.js";
 import { Modal } from "../components/Modal.jsx";
+import { useAuth } from "../context/AuthContext.jsx";
 
 const EMPTY_FORM = { name: "", address: "", area: "" };
 
@@ -13,6 +14,7 @@ export function Locations() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
 
   function load() {
     setLoading(true);
@@ -50,9 +52,11 @@ export function Locations() {
           <h1 className="page-title">Toimipaikat</h1>
           <p className="page-subtitle">Tehtaat, varikot ja muut sijainnit, joissa koneita sijaitsee.</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
-          + Lisää toimipaikka
-        </button>
+        {isAdmin && (
+          <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+            + Lisää toimipaikka
+          </button>
+        )}
       </div>
 
       {loading ? (

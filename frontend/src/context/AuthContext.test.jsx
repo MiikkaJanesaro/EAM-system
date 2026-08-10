@@ -39,6 +39,34 @@ describe("AuthContext", () => {
     expect(localStorage.getItem("eam_token")).toBe("test-token");
   });
 
+  test("isAdmin on tosi vain admin-roolilla", async () => {
+    api.login.mockResolvedValue({
+      token: "test-token",
+      user: { id: "u2", username: "mekaanikko", role: "mechanic" },
+    });
+
+    const { result } = renderAuth();
+    expect(result.current.isAdmin).toBe(false);
+
+    await act(async () => {
+      await result.current.login("mekaanikko", "salasana");
+    });
+    expect(result.current.isAdmin).toBe(false);
+  });
+
+  test("isAdmin on tosi admin-roolin käyttäjälle", async () => {
+    api.login.mockResolvedValue({
+      token: "test-token",
+      user: { id: "u1", username: "admin", role: "admin" },
+    });
+
+    const { result } = renderAuth();
+    await act(async () => {
+      await result.current.login("admin", "admin123");
+    });
+    expect(result.current.isAdmin).toBe(true);
+  });
+
   test("epäonnistunut login asettaa virheen eikä kirjaudu sisään", async () => {
     api.login.mockRejectedValue(new Error("Väärä käyttäjätunnus tai salasana."));
 

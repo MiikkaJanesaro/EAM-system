@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../api/client.js";
 import { StatusPill } from "../components/StatusPill.jsx";
 import { Modal } from "../components/Modal.jsx";
+import { useAuth } from "../context/AuthContext.jsx";
 
 const EMPTY_FORM = {
   name: "",
@@ -22,6 +23,7 @@ export function Assets() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
 
   function load() {
     setLoading(true);
@@ -59,15 +61,19 @@ export function Assets() {
           <h1 className="page-title">Työkoneet</h1>
           <p className="page-subtitle">Kaikki rekisteröidyt koneet ja laitteet toimipaikoittain.</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
-          + Lisää työkone
-        </button>
+        {isAdmin && (
+          <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+            + Lisää työkone
+          </button>
+        )}
       </div>
 
       {loading ? (
         <div className="loading-state">Ladataan…</div>
       ) : assets.length === 0 ? (
-        <div className="empty-state">Ei vielä työkoneita. Lisää ensimmäinen yllä olevasta napista.</div>
+        <div className="empty-state">
+          {isAdmin ? "Ei vielä työkoneita. Lisää ensimmäinen yllä olevasta napista." : "Ei vielä työkoneita."}
+        </div>
       ) : (
         <div className="table-wrap">
           <table>

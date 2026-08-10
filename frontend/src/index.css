@@ -144,6 +144,13 @@ a {
   padding: 0 10px 8px;
 }
 
+.sidebar-role {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--sidebar-text);
+  margin-top: 2px;
+}
+
 .logout-btn {
   width: 100%;
   background: transparent;

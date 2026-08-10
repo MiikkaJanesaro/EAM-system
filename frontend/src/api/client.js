@@ -49,4 +49,20 @@ export const api = {
   remove: (resource, id) => request(`/${resource}/${id}`, { method: "DELETE" }),
 
   workordersByAsset: (assetId) => request(`/workorders?assetId=${assetId}`),
+
+  attachmentUploadUrl: (workorderId, filename, contentType) =>
+    request(`/workorders/${workorderId}/attachments/upload-url`, {
+      method: "POST",
+      body: { filename, contentType },
+    }),
+  confirmAttachment: (workorderId, key, filename) =>
+    request(`/workorders/${workorderId}/attachments`, {
+      method: "POST",
+      body: { key, filename },
+    }),
+
+  changePassword: (currentPassword, newPassword) =>
+    request("/auth/password", { method: "PUT", body: { currentPassword, newPassword } }),
+  listUsers: () => request("/users"),
+  createUser: (data) => request("/users", { method: "POST", body: data }),
 };

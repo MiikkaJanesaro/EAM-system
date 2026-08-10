@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client.js";
 import { Modal } from "../components/Modal.jsx";
+import { useAuth } from "../context/AuthContext.jsx";
 
 const EMPTY_FORM = { name: "", sku: "", quantity: 0, unit: "kpl", locationId: "" };
 
@@ -12,6 +13,7 @@ export function Inventory() {
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const { isAdmin } = useAuth();
 
   function load() {
     setLoading(true);
@@ -71,9 +73,11 @@ export function Inventory() {
           <h1 className="page-title">Varastonhallinta</h1>
           <p className="page-subtitle">Nimikkeet ja saldot toimipaikoittain.</p>
         </div>
-        <button className="btn btn-primary" onClick={openCreate}>
-          + Lisää nimike
-        </button>
+        {isAdmin && (
+          <button className="btn btn-primary" onClick={openCreate}>
+            + Lisää nimike
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -94,7 +98,7 @@ export function Inventory() {
             </thead>
             <tbody>
               {items.map((i) => (
-                <tr key={i.id} onClick={() => openEdit(i)}>
+                <tr key={i.id} onClick={isAdmin ? () => openEdit(i) : undefined}>
                   <td className="row-title">{i.name}</td>
                   <td className="mono">{i.sku}</td>
                   <td>
@@ -102,16 +106,18 @@ export function Inventory() {
                   </td>
                   <td>{locationName(i.locationId)}</td>
                   <td>
-                    <button
-                      className="btn btn-danger"
-                      style={{ padding: "6px 10px" }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(i.id);
-                      }}
-                    >
-                      Poista
-                    </button>
+                    {isAdmin && (
+                      <button
+                        className="btn btn-danger"
+                        style={{ padding: "6px 10px" }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDelete(i.id);
+                        }}
+                      >
+                        Poista
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

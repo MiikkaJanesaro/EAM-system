@@ -44,8 +44,9 @@ pitää olla `.env`:n `AWS_PROFILE`-arvoa (`eam-app`) vastaava profiili ja viisi
 `eam-`-alkuista taulua pitää olla olemassa valitussa `AWS_REGION`-alueessa
 (ks. [Vienti AWS:ään](#vienti-awsn) alempana).
 
-Valmis testitunnus: **käyttäjätunnus `admin`, salasana `admin123`**
-(vaihda/poista ennen tuotantoon vientiä).
+Valmis testitunnus (rooli `admin`): **käyttäjätunnus `admin`, salasana `admin123`**
+(vaihda/poista ennen tuotantoon vientiä). Testitunnus mekaanikon roolille:
+**`mekaanikko1` / `salasana123`**.
 
 **2. Frontend**
 
@@ -68,6 +69,7 @@ Vite proxaa kehityksessä `/api`-kutsut automaattisesti backendiin (ks. `vite.co
 | Toimipaikat | `/locations` | `Locations.jsx` |
 | Toimipaikkanäkymä | `/locations/:id` | `LocationDetail.jsx` – osoite, alue, siellä olevat koneet |
 | Varastonhallinta | `/inventory` | `Inventory.jsx` – saldot ja nimikkeet |
+| Asetukset | `/settings` | `Settings.jsx` – oman salasanan vaihto (kaikki), käyttäjien luonti (vain admin) |
 
 Kaikki `/assets`, `/locations` ja `/inventory` -alaiset reitit ovat `ProtectedRoute`-
 komponentin takana: jos JWT-tokenia ei ole tai se on vanhentunut, käyttäjä ohjataan
@@ -84,6 +86,32 @@ automaattisesti `/login`-sivulle.
 Koska kaikki resurssit (`assets`, `locations`, `inventory`) käyttävät samaa
 `crudFactory`-reititintä backendissä, uuden objektityypin lisääminen (esim.
 "varaosatilaus") vaatii vain yhden rivin `server.js`:ään ja uuden React-sivun.
+
+## Roolit ja oikeudet
+
+Käyttäjillä on rooli (`admin` tai `mechanic`), joka tallentuu `eam-users`-tauluun
+ja kulkee JWT-tokenissa. `requireRole("admin")`-middleware ([`middleware/auth.js`](backend/middleware/auth.js))
+rajaa reittejä:
+
+- **Pääkäyttäjä (`admin`):** näkee ja muokkaa kaikkea, ml. työkoneiden/toimipaikkojen/
+  varaston luonti, muokkaus ja poisto, sekä käyttäjien hallinta (`/api/users`, ks. alla).
+- **Mekaanikko (`mechanic`):** näkee kaiken, ja saa luoda/muokata/poistaa
+  työmääräyksiä (`/api/workorders`) sekä lisätä niihin liitteitä - mutta ei voi
+  muokata työkoneita, toimipaikkoja tai varastoa (POST/PUT/DELETE palauttaa 403).
+  Frontend piilottaa vastaavat "Lisää"/"Muokkaa"/"Poista"-napit mekaanikolta,
+  mutta oikeudet on toteutettu ja tarkistettu myös backendissä - frontendin
+  piilotus on vain käyttökokemusta varten.
+
+**Asetukset-sivulla** (`/settings`) kirjautunut käyttäjä voi vaihtaa oman
+salasanansa (`PUT /api/auth/password`, vaatii nykyisen salasanan). Admin näkee
+lisäksi käyttäjälistan ja "+ Lisää käyttäjä" -lomakkeen (`POST /api/users`):
+
+```json
+{ "username": "matti", "password": "...", "name": "Matti Mekaanikko", "role": "mechanic" }
+```
+
+Ei vielä mahdollisuutta muokata/poistaa olemassa olevia käyttäjiä tai vaihtaa
+toisen käyttäjän salasanaa - vain oman salasanan vaihto ja uusien luonti.
 
 ## Vienti AWS:ään
 
@@ -122,6 +150,28 @@ on oikeudet vain näihin viiteen tauluun (ei koko AWS-tiliin) - ks.
 (5 RCU / 5 WCU per taulu = 25/25 yhteensä), joka mahtuu AWS:n pysyvään
 ilmaiskiintiöön.
 
+**Liitteet (koodi tehty, bucket puuttuu) – S3**
+
+Työmääräyksiin voi liittää kuvia. Backend (`backend/utils/s3.js`,
+`routes/workorders.js`) tarjoaa presigned-URL-perusteisen latauksen: selain
+lataa tiedoston suoraan S3:aan, ei koskaan backendin kautta. Frontendissä
+työmääräystaulukon "Liitteet"-sarake näyttää pienoiskuvat ja "+ Kuva" -napin.
+
+Tämä ei vielä toimi, koska S3-buckettia ei ole luotu (tarkoituksella - AWS-
+resursseja ei luotu ilman erillistä pyyntöä). Aktivointi:
+
+```bash
+aws s3api create-bucket --bucket <uniikki-bucket-nimi> --region eu-north-1 \
+  --create-bucket-configuration LocationConstraint=eu-north-1
+aws s3api put-public-access-block --bucket <uniikki-bucket-nimi> \
+  --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+```
+
+Lisää `eam-app`-käyttäjän IAM-politiikkaan `s3:PutObject`/`s3:GetObject`-oikeudet
+tähän buckettiin (rajattuna, ei koko S3-tiliin), ja aseta bucketin nimi
+`backend/.env`:n `S3_BUCKET`-muuttujaan. Ilman tätä liitteiden lataus palauttaa
+selkeän 500-virheen ("S3_BUCKET ei ole asetettu"), ei kaada palvelinta.
+
 **Vaihe 1 – Frontend (S3 + CloudFront)**
 
 ```bash
@@ -149,8 +199,18 @@ mutta jos organisaatiollasi on jo käyttäjähakemisto, harkitse AWS Cognitoa
 (hoitaa salasanat, MFA:n ja istunnot puolestasi) - `requireAuth`-middleware
 korvattaisiin tällöin Cognitoin JWT:n varmistuksella.
 
+## Testit
+
+```bash
+cd backend && npm test    # 55 testiä, mockattu AWS SDK, ei oikeita AWS-kutsuja
+cd frontend && npm test   # 26 testiä, Vitest + React Testing Library
+```
+
+`cd backend && npm run test:aws` tekee valinnaisen oikean kirjoitus/luku/poisto-kierroksen
+DynamoDB:hen `eam-app`-tunnuksilla - ei osa `npm test`:iä, ei ajeta automaattisesti.
+
 ## Seuraavat askeleet
 
-- Roolit/oikeudet (esim. mekaanikko vs. pääkäyttäjä) - `users`-taulun laajennus + tarkistus middlewaressa.
-- Liitteet (kuvat huoltotöistä) - S3-presigned upload -URL:t.
+- S3-bucket liitteille (ks. yllä "Liitteet" - koodi on valmis, bucket puuttuu).
+- Olemassa olevien käyttäjien muokkaus/poisto ja roolin vaihto (nyt vain uusien luonti).
 - Hälytykset sähköpostilla/SMS:llä myöhässä olevista huolloista (AWS SES/SNS + ajastettu Lambda).

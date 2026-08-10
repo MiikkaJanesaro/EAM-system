@@ -9,6 +9,7 @@ import { AssetDetail } from "./pages/AssetDetail.jsx";
 import { Locations } from "./pages/Locations.jsx";
 import { LocationDetail } from "./pages/LocationDetail.jsx";
 import { Inventory } from "./pages/Inventory.jsx";
+import { Settings } from "./pages/Settings.jsx";
 
 export default function App() {
   return (
@@ -25,6 +26,7 @@ export default function App() {
               <Route path="/locations" element={<Locations />} />
               <Route path="/locations/:id" element={<LocationDetail />} />
               <Route path="/inventory" element={<Inventory />} />
+              <Route path="/settings" element={<Settings />} />
             </Route>
           </Route>
         </Routes>

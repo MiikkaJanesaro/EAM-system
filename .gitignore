@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Environment variables (secrets) - .env.example stays tracked
+.env
+.env.local
+.env.*.local
+
+# Build output
+dist/
+dist-ssr/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Claude Code local settings (machine-specific, not shared)
+.claude/settings.local.json
+
+# Test coverage
+coverage/

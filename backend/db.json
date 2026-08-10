@@ -1,0 +1,140 @@
+{
+  "users": [
+    {
+      "id": "u1",
+      "username": "admin",
+      "passwordHash": "$2a$10$9Fls3TJvQ2i8EP/2.C9WV.9sNBwce5OQtj.mk3tlpsqlL7i2cSdBa",
+      "name": "Pääkäyttäjä"
+    }
+  ],
+  "locations": [
+    {
+      "id": "loc1",
+      "name": "Oulun tehdas",
+      "address": "Teollisuustie 12, 90400 Oulu",
+      "area": "Pohjois-Suomi"
+    },
+    {
+      "id": "loc2",
+      "name": "Kempeleen varikko",
+      "address": "Varastokuja 4, 90440 Kempele",
+      "area": "Pohjois-Suomi"
+    }
+  ],
+  "assets": [
+    {
+      "id": "a1",
+      "name": "Trukki TR-102",
+      "type": "Trukki",
+      "status": "ok",
+      "locationId": "loc1",
+      "serialNumber": "SN-88213",
+      "purchaseDate": "2022-03-14",
+      "notes": "Akku vaihdettu 2024."
+    },
+    {
+      "id": "a2",
+      "name": "Kompressori K-4",
+      "type": "Kompressori",
+      "status": "maintenance_due",
+      "locationId": "loc1",
+      "serialNumber": "SN-55021",
+      "purchaseDate": "2019-11-02",
+      "notes": ""
+    },
+    {
+      "id": "a3",
+      "name": "Nosturi N-7",
+      "type": "Nosturi",
+      "status": "overdue",
+      "locationId": "loc2",
+      "serialNumber": "SN-77410",
+      "purchaseDate": "2020-06-20",
+      "notes": "Vaatii sertifioidun tarkastuksen."
+    },
+    {
+      "id": "00c8a895-e6fb-43f2-b979-b8d2b7f8eaf0",
+      "name": "Volvo LH120",
+      "type": "Pyöräkone",
+      "status": "ok",
+      "locationId": "loc1",
+      "serialNumber": "1234567",
+      "purchaseDate": "2008-06-08",
+      "notes": ""
+    }
+  ],
+  "inventory": [
+    {
+      "id": "i1",
+      "name": "Hydrauliikkaöljy 10L",
+      "sku": "HYD-010",
+      "quantity": 24,
+      "unit": "litraa",
+      "locationId": "loc1"
+    },
+    {
+      "id": "i2",
+      "name": "Trukin akku 24V",
+      "sku": "AKK-024",
+      "quantity": 3,
+      "unit": "kpl",
+      "locationId": "loc2"
+    }
+  ],
+  "workorders": [
+    {
+      "id": "w1",
+      "assetId": "a1",
+      "kind": "done",
+      "title": "Määräaikaishuolto",
+      "description": "Öljyt ja suodattimet vaihdettu.",
+      "date": "2025-05-10",
+      "status": "completed"
+    },
+    {
+      "id": "w2",
+      "assetId": "a2",
+      "kind": "scheduled",
+      "title": "Vuosihuolto",
+      "description": "Kompressorin paineistuksen tarkastus.",
+      "date": "2026-07-20",
+      "status": "scheduled"
+    },
+    {
+      "id": "w3",
+      "assetId": "a3",
+      "kind": "scheduled",
+      "title": "Sertifioitu tarkastus",
+      "description": "Nosturin lakisääteinen määräaikaistarkastus.",
+      "date": "2026-06-01",
+      "status": "overdue"
+    },
+    {
+      "id": "016a26c0-a02a-444d-9f8d-beb6b604aa4a",
+      "kind": "scheduled",
+      "title": "Määräaikaishuolto",
+      "description": "Vaiha jo ne öljyt ettei leikkaa kiinni. Öljyt 10w40, suodatin, rasvarin tarkistus, rasvanipat. yms.",
+      "date": "2026-08-20",
+      "status": "scheduled",
+      "assetId": "a2"
+    },
+    {
+      "id": "922dcde0-57a3-430c-ad71-13074ad297ff",
+      "kind": "done",
+      "title": "Määräaikaishuolto",
+      "description": "Öljyt, suodattimet, rasvat yms",
+      "date": "2026-07-08",
+      "status": "completed",
+      "assetId": "00c8a895-e6fb-43f2-b979-b8d2b7f8eaf0"
+    },
+    {
+      "id": "7e0ea08a-082b-40df-92b9-1f199d99b818",
+      "kind": "scheduled",
+      "title": "Määräaikaishuolto",
+      "description": "Öljyt, yms",
+      "date": "2026-09-17",
+      "status": "scheduled",
+      "assetId": "00c8a895-e6fb-43f2-b979-b8d2b7f8eaf0"
+    }
+  ]
+}

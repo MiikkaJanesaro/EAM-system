@@ -104,14 +104,21 @@ rajaa reittejä:
 
 **Asetukset-sivulla** (`/settings`) kirjautunut käyttäjä voi vaihtaa oman
 salasanansa (`PUT /api/auth/password`, vaatii nykyisen salasanan). Admin näkee
-lisäksi käyttäjälistan ja "+ Lisää käyttäjä" -lomakkeen (`POST /api/users`):
+lisäksi käyttäjälistan, jossa voi:
 
-```json
-{ "username": "matti", "password": "...", "name": "Matti Mekaanikko", "role": "mechanic" }
-```
+- **Luoda** uuden käyttäjän ("+ Lisää käyttäjä" -lomake, `POST /api/users`).
+- **Muokata** nimeä, käyttäjätunnusta ja roolia (`PUT /api/users/:id`).
+- **Poistaa** käyttäjän (`DELETE /api/users/:id`) - vaatii käyttäjätunnuksen
+  kirjoittamisen tarkalleen oikein vahvistusikkunassa ennen kuin "Poista
+  pysyvästi" -nappi aktivoituu, jotta poisto ei tapahdu vahingossa.
 
-Ei vielä mahdollisuutta muokata/poistaa olemassa olevia käyttäjiä tai vaihtaa
-toisen käyttäjän salasanaa - vain oman salasanan vaihto ja uusien luonti.
+Turvarajat (tarkistetaan backendissä, ei vain piilotettu käyttöliittymästä):
+et voi poistaa omaa tiliäsi, etkä poistaa tai muuttaa mekaanikoksi viimeistä
+jäljellä olevaa pääkäyttäjää - näin järjestelmä ei voi jäädä tilaan, jossa
+kukaan ei enää pääse hallinnoimaan käyttäjiä.
+
+Ei vielä mahdollisuutta vaihtaa toisen käyttäjän salasanaa - vain oman
+salasanan vaihto.
 
 ## Vienti AWS:ään
 
@@ -202,8 +209,8 @@ korvattaisiin tällöin Cognitoin JWT:n varmistuksella.
 ## Testit
 
 ```bash
-cd backend && npm test    # 55 testiä, mockattu AWS SDK, ei oikeita AWS-kutsuja
-cd frontend && npm test   # 26 testiä, Vitest + React Testing Library
+cd backend && npm test    # 66 testiä, mockattu AWS SDK, ei oikeita AWS-kutsuja
+cd frontend && npm test   # 31 testiä, Vitest + React Testing Library
 ```
 
 `cd backend && npm run test:aws` tekee valinnaisen oikean kirjoitus/luku/poisto-kierroksen
@@ -212,5 +219,5 @@ DynamoDB:hen `eam-app`-tunnuksilla - ei osa `npm test`:iä, ei ajeta automaattis
 ## Seuraavat askeleet
 
 - S3-bucket liitteille (ks. yllä "Liitteet" - koodi on valmis, bucket puuttuu).
-- Olemassa olevien käyttäjien muokkaus/poisto ja roolin vaihto (nyt vain uusien luonti).
+- Toisen käyttäjän salasanan vaihto/nollaus admin-oikeuksilla.
 - Hälytykset sähköpostilla/SMS:llä myöhässä olevista huolloista (AWS SES/SNS + ajastettu Lambda).

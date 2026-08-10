@@ -14,6 +14,8 @@ vi.mock("../api/client.js", () => ({
     changePassword: vi.fn(),
     listUsers: vi.fn(),
     createUser: vi.fn(),
+    update: vi.fn(),
+    remove: vi.fn(),
   },
 }));
 
@@ -76,7 +78,7 @@ describe("UserManagementCard", () => {
   });
 
   test("admin näkee käyttäjälistan", async () => {
-    useAuth.mockReturnValue({ isAdmin: true });
+    useAuth.mockReturnValue({ isAdmin: true, user: { id: "u1" } });
     api.listUsers.mockResolvedValue([
       { id: "u1", username: "admin", name: "Pääkäyttäjä", role: "admin" },
       { id: "u2", username: "mekaanikko1", name: "Matti Mekaanikko", role: "mechanic" },
@@ -89,7 +91,7 @@ describe("UserManagementCard", () => {
   });
 
   test("admin voi luoda uuden käyttäjän", async () => {
-    useAuth.mockReturnValue({ isAdmin: true });
+    useAuth.mockReturnValue({ isAdmin: true, user: { id: "u1" } });
     api.listUsers.mockResolvedValue([]);
     api.createUser.mockResolvedValue({ id: "u3", username: "uusi", role: "mechanic" });
     render(<Settings />);
@@ -112,5 +114,108 @@ describe("UserManagementCard", () => {
       })
     );
     expect(api.listUsers).toHaveBeenCalledTimes(2);
+  });
+
+  test("ei näytä oman rivin Poista-nappia", async () => {
+    useAuth.mockReturnValue({ isAdmin: true, user: { id: "u1" } });
+    api.listUsers.mockResolvedValue([
+      { id: "u1", username: "admin", name: "Pääkäyttäjä", role: "admin" },
+      { id: "u2", username: "mekaanikko1", name: "Matti Mekaanikko", role: "mechanic" },
+    ]);
+    render(<Settings />);
+
+    await waitFor(() => expect(screen.getByText("admin")).toBeInTheDocument());
+    const deleteButtons = screen.getAllByRole("button", { name: "Poista" });
+    expect(deleteButtons.length).toBe(1);
+  });
+
+  test("admin voi muokata käyttäjää", async () => {
+    useAuth.mockReturnValue({ isAdmin: true, user: { id: "u1" } });
+    api.listUsers.mockResolvedValue([
+      { id: "u2", username: "mekaanikko1", name: "Matti Mekaanikko", role: "mechanic" },
+    ]);
+    api.update.mockResolvedValue({ id: "u2", username: "mekaanikko1", name: "Uusi Nimi", role: "admin" });
+    render(<Settings />);
+    const user = userEvent.setup();
+
+    await waitFor(() => expect(screen.getByText("mekaanikko1")).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Muokkaa" }));
+
+    const nameInput = screen.getByLabelText("Nimi");
+    await user.clear(nameInput);
+    await user.type(nameInput, "Uusi Nimi");
+    await user.selectOptions(screen.getByLabelText("Rooli"), "admin");
+    await user.click(screen.getByRole("button", { name: /tallenna muutokset/i }));
+
+    await waitFor(() =>
+      expect(api.update).toHaveBeenCalledWith("users", "u2", {
+        name: "Uusi Nimi",
+        username: "mekaanikko1",
+        role: "admin",
+      })
+    );
+    expect(api.listUsers).toHaveBeenCalledTimes(2);
+  });
+
+  test("poisto-nappi pysyy pois käytöstä kunnes käyttäjätunnus kirjoitetaan oikein", async () => {
+    useAuth.mockReturnValue({ isAdmin: true, user: { id: "u1" } });
+    api.listUsers.mockResolvedValue([
+      { id: "u2", username: "mekaanikko1", name: "Matti Mekaanikko", role: "mechanic" },
+    ]);
+    render(<Settings />);
+    const user = userEvent.setup();
+
+    await waitFor(() => expect(screen.getByText("mekaanikko1")).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Poista" }));
+
+    const confirmButton = screen.getByRole("button", { name: /poista pysyvästi/i });
+    expect(confirmButton).toBeDisabled();
+
+    const confirmInput = screen.getByLabelText(/kirjoita käyttäjätunnus/i);
+    await user.type(confirmInput, "vaarateksti");
+    expect(confirmButton).toBeDisabled();
+
+    await user.clear(confirmInput);
+    await user.type(confirmInput, "mekaanikko1");
+    expect(confirmButton).not.toBeDisabled();
+
+    expect(api.remove).not.toHaveBeenCalled();
+  });
+
+  test("admin voi poistaa käyttäjän kirjoitettuaan käyttäjätunnuksen oikein", async () => {
+    useAuth.mockReturnValue({ isAdmin: true, user: { id: "u1" } });
+    api.listUsers.mockResolvedValue([
+      { id: "u2", username: "mekaanikko1", name: "Matti Mekaanikko", role: "mechanic" },
+    ]);
+    api.remove.mockResolvedValue(null);
+    render(<Settings />);
+    const user = userEvent.setup();
+
+    await waitFor(() => expect(screen.getByText("mekaanikko1")).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Poista" }));
+    await user.type(screen.getByLabelText(/kirjoita käyttäjätunnus/i), "mekaanikko1");
+    await user.click(screen.getByRole("button", { name: /poista pysyvästi/i }));
+
+    await waitFor(() => expect(api.remove).toHaveBeenCalledWith("users", "u2"));
+    expect(api.listUsers).toHaveBeenCalledTimes(2);
+  });
+
+  test("näyttää palvelimen virheen jos poisto epäonnistuu (esim. viimeinen admin)", async () => {
+    useAuth.mockReturnValue({ isAdmin: true, user: { id: "u1" } });
+    api.listUsers.mockResolvedValue([
+      { id: "u2", username: "toinenadmin", name: "Toinen Admin", role: "admin" },
+    ]);
+    api.remove.mockRejectedValue(new Error("Viimeistä pääkäyttäjää ei voi poistaa."));
+    render(<Settings />);
+    const user = userEvent.setup();
+
+    await waitFor(() => expect(screen.getByText("toinenadmin")).toBeInTheDocument());
+    await user.click(screen.getByRole("button", { name: "Poista" }));
+    await user.type(screen.getByLabelText(/kirjoita käyttäjätunnus/i), "toinenadmin");
+    await user.click(screen.getByRole("button", { name: /poista pysyvästi/i }));
+
+    await waitFor(() =>
+      expect(screen.getByText("Viimeistä pääkäyttäjää ei voi poistaa.")).toBeInTheDocument()
+    );
   });
 });

@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client.js";
 import { Modal } from "../components/Modal.jsx";
+import { SearchInput } from "../components/SearchInput.jsx";
+import { SortableHeader } from "../components/SortableHeader.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
+import { useTableControls } from "../hooks/useTableControls.js";
 
 const EMPTY_USER_FORM = { username: "", password: "", name: "", role: "mechanic" };
 
@@ -117,6 +120,15 @@ function UserManagementCard() {
 
   useEffect(load, [isAdmin]);
 
+  const roleLabel = (u) => (u.role === "admin" ? "Pääkäyttäjä" : "Mekaanikko");
+  const { search, setSearch, sortKey, sortDir, toggleSort, items: visibleUsers } = useTableControls(
+    users,
+    {
+      searchFields: ["name", "username", roleLabel],
+      sortAccessors: { role: roleLabel },
+    }
+  );
+
   if (!isAdmin) return null;
 
   async function handleCreate(e) {
@@ -149,47 +161,56 @@ function UserManagementCard() {
       {loading ? (
         <div className="loading-state">Ladataan…</div>
       ) : (
-        <div className="table-wrap" style={{ marginTop: 16 }}>
-          <table>
-            <thead>
-              <tr>
-                <th>Nimi</th>
-                <th>Käyttäjätunnus</th>
-                <th>Rooli</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u) => (
-                <tr key={u.id} style={{ cursor: "default" }}>
-                  <td className="row-title">{u.name}</td>
-                  <td className="mono">{u.username}</td>
-                  <td>{u.role === "admin" ? "Pääkäyttäjä" : "Mekaanikko"}</td>
-                  <td>
-                    <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                      <button
-                        className="btn btn-secondary"
-                        style={{ padding: "6px 10px" }}
-                        onClick={() => setEditingUser(u)}
-                      >
-                        Muokkaa
-                      </button>
-                      {u.id !== currentUser?.id && (
-                        <button
-                          className="btn btn-danger"
-                          style={{ padding: "6px 10px" }}
-                          onClick={() => setDeletingUser(u)}
-                        >
-                          Poista
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <div className="list-toolbar" style={{ marginTop: 16 }}>
+            <SearchInput value={search} onChange={setSearch} placeholder="Hae käyttäjiä…" />
+          </div>
+          {visibleUsers.length === 0 ? (
+            <div className="empty-state">Ei hakua vastaavia käyttäjiä.</div>
+          ) : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <SortableHeader label="Nimi" sortKey="name" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                    <SortableHeader label="Käyttäjätunnus" sortKey="username" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                    <SortableHeader label="Rooli" sortKey="role" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleUsers.map((u) => (
+                    <tr key={u.id} style={{ cursor: "default" }}>
+                      <td className="row-title">{u.name}</td>
+                      <td className="mono">{u.username}</td>
+                      <td>{roleLabel(u)}</td>
+                      <td>
+                        <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                          <button
+                            className="btn btn-secondary"
+                            style={{ padding: "6px 10px" }}
+                            onClick={() => setEditingUser(u)}
+                          >
+                            Muokkaa
+                          </button>
+                          {u.id !== currentUser?.id && (
+                            <button
+                              className="btn btn-danger"
+                              style={{ padding: "6px 10px" }}
+                              onClick={() => setDeletingUser(u)}
+                            >
+                              Poista
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
 
       {showCreateModal && (

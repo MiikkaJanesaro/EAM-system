@@ -5,9 +5,11 @@ import request from "supertest";
 import jwt from "jsonwebtoken";
 import { mockClient } from "aws-sdk-client-mock";
 import { DynamoDBDocumentClient, ScanCommand, GetCommand, PutCommand } from "@aws-sdk/lib-dynamodb";
+import { S3Client, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { createApp } from "../app.js";
 
 const ddbMock = mockClient(DynamoDBDocumentClient);
+const s3Mock = mockClient(S3Client);
 const app = createApp();
 const token = jwt.sign({ sub: "u1", username: "mekaanikko", role: "mechanic" }, "test-secret");
 const auth = (req) => req.set("Authorization", `Bearer ${token}`);
@@ -20,6 +22,7 @@ const allWorkorders = [
 
 beforeEach(() => {
   ddbMock.reset();
+  s3Mock.reset();
   ddbMock.on(ScanCommand, { TableName: "eam-workorders" }).resolves({ Items: allWorkorders });
 });
 
@@ -116,5 +119,55 @@ describe("POST /api/workorders/:id/attachments", () => {
       filename: "y",
     });
     assert.equal(res.status, 404);
+  });
+});
+
+describe("DELETE /api/workorders/:id/attachments", () => {
+  test("poistaa liitteen S3:sta ja työmääräyksestä", async () => {
+    ddbMock.on(GetCommand).resolves({
+      Item: {
+        id: "w1",
+        assetId: "a1",
+        attachments: [
+          { key: "workorders/w1/a.jpg", filename: "a.jpg" },
+          { key: "workorders/w1/b.jpg", filename: "b.jpg" },
+        ],
+      },
+    });
+    ddbMock.on(PutCommand).resolves({});
+    s3Mock.on(DeleteObjectCommand).resolves({});
+
+    const res = await auth(request(app).delete("/api/workorders/w1/attachments")).send({
+      key: "workorders/w1/a.jpg",
+    });
+
+    assert.equal(res.status, 200);
+    assert.equal(res.body.attachments.length, 1);
+    assert.equal(res.body.attachments[0].key, "workorders/w1/b.jpg");
+
+    const deleteCall = s3Mock.commandCalls(DeleteObjectCommand)[0];
+    assert.equal(deleteCall.args[0].input.Key, "workorders/w1/a.jpg");
+  });
+
+  test("palauttaa 400 jos key puuttuu", async () => {
+    const res = await auth(request(app).delete("/api/workorders/w1/attachments")).send({});
+    assert.equal(res.status, 400);
+  });
+
+  test("palauttaa 404 jos työmääräystä ei löydy", async () => {
+    ddbMock.on(GetCommand).resolves({});
+    const res = await auth(request(app).delete("/api/workorders/unknown/attachments")).send({
+      key: "x",
+    });
+    assert.equal(res.status, 404);
+  });
+
+  test("palauttaa 404 jos liitettä ei löydy työmääräykseltä", async () => {
+    ddbMock.on(GetCommand).resolves({ Item: { id: "w1", assetId: "a1", attachments: [] } });
+    const res = await auth(request(app).delete("/api/workorders/w1/attachments")).send({
+      key: "workorders/w1/ei-olemassa.jpg",
+    });
+    assert.equal(res.status, 404);
+    assert.equal(s3Mock.commandCalls(DeleteObjectCommand).length, 0);
   });
 });

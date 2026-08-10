@@ -60,6 +60,8 @@ export const api = {
       method: "POST",
       body: { key, filename },
     }),
+  deleteAttachment: (workorderId, key) =>
+    request(`/workorders/${workorderId}/attachments`, { method: "DELETE", body: { key } }),
 
   changePassword: (currentPassword, newPassword) =>
     request("/auth/password", { method: "PUT", body: { currentPassword, newPassword } }),

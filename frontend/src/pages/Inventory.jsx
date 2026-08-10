@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
 import { api } from "../api/client.js";
 import { Modal } from "../components/Modal.jsx";
+import { SearchInput } from "../components/SearchInput.jsx";
+import { SortableHeader } from "../components/SortableHeader.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
+import { useTableControls } from "../hooks/useTableControls.js";
 
 const EMPTY_FORM = { name: "", sku: "", quantity: 0, unit: "kpl", locationId: "" };
 
@@ -28,6 +31,14 @@ export function Inventory() {
   useEffect(load, []);
 
   const locationName = (locId) => locations.find((l) => l.id === locId)?.name || "—";
+
+  const { search, setSearch, sortKey, sortDir, toggleSort, items: visibleItems } = useTableControls(
+    items,
+    {
+      searchFields: ["name", "sku", (i) => locationName(i.locationId)],
+      sortAccessors: { location: (i) => locationName(i.locationId) },
+    }
+  );
 
   function openCreate() {
     setEditing(null);
@@ -85,45 +96,54 @@ export function Inventory() {
       ) : items.length === 0 ? (
         <div className="empty-state">Ei vielä varastonimikkeitä.</div>
       ) : (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Nimike</th>
-                <th>SKU</th>
-                <th>Saldo</th>
-                <th>Toimipaikka</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((i) => (
-                <tr key={i.id} onClick={isAdmin ? () => openEdit(i) : undefined}>
-                  <td className="row-title">{i.name}</td>
-                  <td className="mono">{i.sku}</td>
-                  <td>
-                    {i.quantity} {i.unit}
-                  </td>
-                  <td>{locationName(i.locationId)}</td>
-                  <td>
-                    {isAdmin && (
-                      <button
-                        className="btn btn-danger"
-                        style={{ padding: "6px 10px" }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDelete(i.id);
-                        }}
-                      >
-                        Poista
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <div className="list-toolbar">
+            <SearchInput value={search} onChange={setSearch} placeholder="Hae nimikkeitä…" />
+          </div>
+          {visibleItems.length === 0 ? (
+            <div className="empty-state">Ei hakua vastaavia nimikkeitä.</div>
+          ) : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <SortableHeader label="Nimike" sortKey="name" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                    <SortableHeader label="SKU" sortKey="sku" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                    <SortableHeader label="Saldo" sortKey="quantity" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                    <SortableHeader label="Toimipaikka" sortKey="location" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleItems.map((i) => (
+                    <tr key={i.id} onClick={isAdmin ? () => openEdit(i) : undefined}>
+                      <td className="row-title">{i.name}</td>
+                      <td className="mono">{i.sku}</td>
+                      <td>
+                        {i.quantity} {i.unit}
+                      </td>
+                      <td>{locationName(i.locationId)}</td>
+                      <td>
+                        {isAdmin && (
+                          <button
+                            className="btn btn-danger"
+                            style={{ padding: "6px 10px" }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDelete(i.id);
+                            }}
+                          >
+                            Poista
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
 
       {showModal && (

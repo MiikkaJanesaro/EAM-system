@@ -87,6 +87,23 @@ Koska kaikki resurssit (`assets`, `locations`, `inventory`) käyttävät samaa
 `crudFactory`-reititintä backendissä, uuden objektityypin lisääminen (esim.
 "varaosatilaus") vaatii vain yhden rivin `server.js`:ään ja uuden React-sivun.
 
+## Haku ja lajittelu
+
+Jokaisella listasivulla (Työkoneet, Toimipaikat, Toimipaikan koneet, Varasto,
+Käyttäjät, huoltotöiden Huoltohistoria/Määräaikaishuollot-taulukot) on
+hakukenttä ja klikattavat sarakeotsikot lajittelua varten. Toteutus on jaettu
+kaikkien sivujen kesken:
+
+- `src/hooks/useTableControls.js` - hakusuodatus + lajittelu, toimii sekä
+  suorilla kenttänimillä että laskettuja arvoja tuottavilla funktioilla
+  (esim. työkoneen listassa haku toimii myös toimipaikan nimellä, ei vain
+  työkoneen omilla kentillä).
+- `src/components/SearchInput.jsx`, `src/components/SortableHeader.jsx` -
+  yhteinen hakukenttä ja lajiteltava `<th>`-komponentti.
+
+Haku ja lajittelu tapahtuvat selaimessa jo ladatulle datalle - ei uusia
+API-kutsuja, koska tietomäärät ovat pieniä.
+
 ## Roolit ja oikeudet
 
 Käyttäjillä on rooli (`admin` tai `mechanic`), joka tallentuu `eam-users`-tauluun
@@ -139,6 +156,11 @@ Kohdearkkitehtuuri:
                  ┌─────────────────────────┐
                  │  DynamoDB               │  eam-users, eam-locations, eam-assets,
                  │  (tehty)                │  eam-inventory, eam-workorders
+                 └────────────┬────────────┘
+                              │
+                              ▼
+                 ┌─────────────────────────┐
+                 │  S3 (tehty)             │  eam-system-attachments-071954287329
                  └─────────────────────────┘
 ```
 
@@ -157,26 +179,41 @@ on oikeudet vain näihin viiteen tauluun (ei koko AWS-tiliin) - ks.
 (5 RCU / 5 WCU per taulu = 25/25 yhteensä), joka mahtuu AWS:n pysyvään
 ilmaiskiintiöön.
 
-**Liitteet (koodi tehty, bucket puuttuu) – S3**
+**Liitteet (tehty) – S3**
 
 Työmääräyksiin voi liittää kuvia. Backend (`backend/utils/s3.js`,
 `routes/workorders.js`) tarjoaa presigned-URL-perusteisen latauksen: selain
 lataa tiedoston suoraan S3:aan, ei koskaan backendin kautta. Frontendissä
 työmääräystaulukon "Liitteet"-sarake näyttää pienoiskuvat ja "+ Kuva" -napin.
 
-Tämä ei vielä toimi, koska S3-buckettia ei ole luotu (tarkoituksella - AWS-
-resursseja ei luotu ilman erillistä pyyntöä). Aktivointi:
+Bucket `eam-system-attachments-071954287329` (eu-north-1) on luotu salattuna
+(SSE-S3) ja julkinen pääsy on estetty kokonaan (`put-public-access-block`).
+`eam-app`-käyttäjällä on omassa politiikassaan (`eam-app-s3-attachments-
+access`) oikeudet `s3:PutObject`/`s3:GetObject` vain tähän buckettiin, ei
+koko S3-tiliin. Bucketin nimi on `backend/.env`:n `S3_BUCKET`-muuttujassa.
+
+**Muista CORS:** koska selain lataa tiedoston suoraan S3:aan (ei backendin
+kautta), bucketissa täytyy olla CORS-konfiguraatio joka sallii `PUT`/`GET`
+frontendin origin-osoitteesta - muuten selain estää latauksen ja `fetch()`
+epäonnistuu viestillä "Failed to fetch" (backend ei näe pyyntöä koskaan,
+joten palvelimen lokeista ei löydy mitään vihjettä). Asetettu näin:
 
 ```bash
-aws s3api create-bucket --bucket <uniikki-bucket-nimi> --region eu-north-1 \
-  --create-bucket-configuration LocationConstraint=eu-north-1
-aws s3api put-public-access-block --bucket <uniikki-bucket-nimi> \
-  --public-access-block-configuration BlockPublicAcls=true,IgnorePublicAcls=true,BlockPublicPolicy=true,RestrictPublicBuckets=true
+aws s3api put-bucket-cors --bucket <bucket-nimi> --cors-configuration '{
+  "CORSRules": [{
+    "AllowedOrigins": ["http://localhost:5173"],
+    "AllowedMethods": ["PUT", "GET"],
+    "AllowedHeaders": ["*"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3000
+  }]
+}'
 ```
 
-Lisää `eam-app`-käyttäjän IAM-politiikkaan `s3:PutObject`/`s3:GetObject`-oikeudet
-tähän buckettiin (rajattuna, ei koko S3-tiliin), ja aseta bucketin nimi
-`backend/.env`:n `S3_BUCKET`-muuttujaan. Ilman tätä liitteiden lataus palauttaa
+Jos frontend viedään tuotantoon eri osoitteeseen, lisää sekin `AllowedOrigins`-
+listaan.
+
+Jos `S3_BUCKET` on tyhjä (esim. toisessa AWS-tilissä), liitteiden lataus palauttaa
 selkeän 500-virheen ("S3_BUCKET ei ole asetettu"), ei kaada palvelinta.
 
 **Vaihe 1 – Frontend (S3 + CloudFront)**
@@ -210,7 +247,7 @@ korvattaisiin tällöin Cognitoin JWT:n varmistuksella.
 
 ```bash
 cd backend && npm test    # 66 testiä, mockattu AWS SDK, ei oikeita AWS-kutsuja
-cd frontend && npm test   # 31 testiä, Vitest + React Testing Library
+cd frontend && npm test   # 42 testiä, Vitest + React Testing Library
 ```
 
 `cd backend && npm run test:aws` tekee valinnaisen oikean kirjoitus/luku/poisto-kierroksen
@@ -218,6 +255,5 @@ DynamoDB:hen `eam-app`-tunnuksilla - ei osa `npm test`:iä, ei ajeta automaattis
 
 ## Seuraavat askeleet
 
-- S3-bucket liitteille (ks. yllä "Liitteet" - koodi on valmis, bucket puuttuu).
 - Toisen käyttäjän salasanan vaihto/nollaus admin-oikeuksilla.
 - Hälytykset sähköpostilla/SMS:llä myöhässä olevista huolloista (AWS SES/SNS + ajastettu Lambda).

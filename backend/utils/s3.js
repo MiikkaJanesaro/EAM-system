@@ -1,7 +1,7 @@
 // S3-liitteet (esim. huoltotöiden valokuvat). Kova ei-julkinen bucket -
 // selain lataa/lukee tiedostot väliaikaisilla presigned-URL:eilla, ei
 // koskaan suoraan backendin kautta eikä julkisen bucket-käytännön kautta.
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const client = new S3Client({ region: process.env.AWS_REGION });
@@ -28,4 +28,8 @@ export async function createUploadUrl(key, contentType) {
 export async function createDownloadUrl(key) {
   const command = new GetObjectCommand({ Bucket: requireBucket(), Key: key });
   return getSignedUrl(client, command, { expiresIn: UPLOAD_URL_EXPIRY_SECONDS });
+}
+
+export async function deleteObject(key) {
+  await client.send(new DeleteObjectCommand({ Bucket: requireBucket(), Key: key }));
 }

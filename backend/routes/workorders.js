@@ -3,7 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import { readAll, findById, create, update, remove } from "../utils/db.js";
 import { requireAuth } from "../middleware/auth.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { createUploadUrl, createDownloadUrl } from "../utils/s3.js";
+import { createUploadUrl, createDownloadUrl, deleteObject } from "../utils/s3.js";
 
 const router = Router();
 router.use(requireAuth);
@@ -73,6 +73,26 @@ router.post("/:id/attachments", asyncHandler(async (req, res) => {
   ];
   const updated = await update("workorders", req.params.id, { attachments });
   res.status(201).json(await withAttachmentUrls(updated));
+}));
+
+router.delete("/:id/attachments", asyncHandler(async (req, res) => {
+  const { key } = req.body;
+  if (!key) {
+    return res.status(400).json({ error: "key vaaditaan." });
+  }
+  const workorder = await findById("workorders", req.params.id);
+  if (!workorder) return res.status(404).json({ error: "Työmääräystä ei löytynyt." });
+
+  const attachments = workorder.attachments || [];
+  if (!attachments.some((a) => a.key === key)) {
+    return res.status(404).json({ error: "Liitettä ei löytynyt." });
+  }
+
+  await deleteObject(key);
+  const updated = await update("workorders", req.params.id, {
+    attachments: attachments.filter((a) => a.key !== key),
+  });
+  res.json(await withAttachmentUrls(updated));
 }));
 
 export default router;

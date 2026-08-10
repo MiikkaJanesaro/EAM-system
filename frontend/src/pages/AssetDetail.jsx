@@ -3,7 +3,10 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client.js";
 import { StatusPill } from "../components/StatusPill.jsx";
 import { Modal } from "../components/Modal.jsx";
+import { SearchInput } from "../components/SearchInput.jsx";
+import { SortableHeader } from "../components/SortableHeader.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
+import { useTableControls } from "../hooks/useTableControls.js";
 
 export function AssetDetail() {
   const { id } = useParams();
@@ -152,7 +155,7 @@ export function AssetDetail() {
           emptyText="Ei vielä tehtyjä huoltotöitä."
           onAdd={() => setWoForm({ kind: "done", title: "", description: "", date: "", status: "completed" })}
           addLabel="+ Kirjaa tehty huolto"
-          onAttachmentAdded={load}
+          onAttachmentsChanged={load}
         />
       )}
 
@@ -162,7 +165,7 @@ export function AssetDetail() {
           emptyText="Ei suunniteltuja huoltoja."
           onAdd={() => setWoForm({ kind: "scheduled", title: "", description: "", date: "", status: "scheduled" })}
           addLabel="+ Lisää suunniteltu huolto"
-          onAttachmentAdded={load}
+          onAttachmentsChanged={load}
         />
       )}
 
@@ -242,43 +245,49 @@ export function AssetDetail() {
   );
 }
 
-function WorkorderTable({ items, emptyText, onAdd, addLabel, onAttachmentAdded }) {
+function WorkorderTable({ items, emptyText, onAdd, addLabel, onAttachmentsChanged }) {
+  const { search, setSearch, sortKey, sortDir, toggleSort, items: filtered } = useTableControls(items, {
+    searchFields: ["title", "description", "status"],
+  });
+  // Oletuslajittelu on uusin ensin, ellei käyttäjä ole valinnut saraketta.
+  const displayed = sortKey ? filtered : [...filtered].sort((a, b) => new Date(b.date) - new Date(a.date));
+
   return (
     <div>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 12 }}>
+        <SearchInput value={search} onChange={setSearch} placeholder="Hae huoltotöitä…" />
         <button className="btn btn-secondary" onClick={onAdd}>
           {addLabel}
         </button>
       </div>
       {items.length === 0 ? (
         <div className="empty-state">{emptyText}</div>
+      ) : displayed.length === 0 ? (
+        <div className="empty-state">Ei hakua vastaavia huoltotöitä.</div>
       ) : (
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Otsikko</th>
-                <th>Kuvaus</th>
-                <th>Päivämäärä</th>
-                <th>Tila</th>
+                <SortableHeader label="Otsikko" sortKey="title" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <SortableHeader label="Kuvaus" sortKey="description" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <SortableHeader label="Päivämäärä" sortKey="date" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <SortableHeader label="Tila" sortKey="status" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />
                 <th>Liitteet</th>
               </tr>
             </thead>
             <tbody>
-              {items
-                .slice()
-                .sort((a, b) => new Date(b.date) - new Date(a.date))
-                .map((w) => (
-                  <tr key={w.id} style={{ cursor: "default" }}>
-                    <td className="row-title">{w.title}</td>
-                    <td>{w.description || "—"}</td>
-                    <td className="mono">{w.date}</td>
-                    <td>{w.status}</td>
-                    <td>
-                      <AttachmentCell workorder={w} onAttachmentAdded={onAttachmentAdded} />
-                    </td>
-                  </tr>
-                ))}
+              {displayed.map((w) => (
+                <tr key={w.id} style={{ cursor: "default" }}>
+                  <td className="row-title">{w.title}</td>
+                  <td>{w.description || "—"}</td>
+                  <td className="mono">{w.date}</td>
+                  <td>{w.status}</td>
+                  <td>
+                    <AttachmentCell workorder={w} onAttachmentsChanged={onAttachmentsChanged} />
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -287,8 +296,9 @@ function WorkorderTable({ items, emptyText, onAdd, addLabel, onAttachmentAdded }
   );
 }
 
-function AttachmentCell({ workorder, onAttachmentAdded }) {
+function AttachmentCell({ workorder, onAttachmentsChanged }) {
   const [uploading, setUploading] = useState(false);
+  const [deletingKey, setDeletingKey] = useState(null);
 
   async function handleFileChange(e) {
     const file = e.target.files[0];
@@ -305,7 +315,7 @@ function AttachmentCell({ workorder, onAttachmentAdded }) {
       });
       if (!putRes.ok) throw new Error("Kuvan lataus S3:aan epäonnistui.");
       await api.confirmAttachment(workorder.id, key, file.name);
-      onAttachmentAdded?.();
+      onAttachmentsChanged?.();
     } catch (err) {
       alert(err.message);
     } finally {
@@ -313,20 +323,45 @@ function AttachmentCell({ workorder, onAttachmentAdded }) {
     }
   }
 
+  async function handleDelete(attachment) {
+    if (!confirm(`Poistetaanko liite "${attachment.filename}"?`)) return;
+    setDeletingKey(attachment.key);
+    try {
+      await api.deleteAttachment(workorder.id, attachment.key);
+      onAttachmentsChanged?.();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setDeletingKey(null);
+    }
+  }
+
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
       {(workorder.attachments || []).map((a) => (
-        <a key={a.key} href={a.url} target="_blank" rel="noreferrer" title={a.filename}>
-          {a.url && a.filename?.match(/\.(jpe?g|png|gif|webp)$/i) ? (
-            <img
-              src={a.url}
-              alt={a.filename}
-              style={{ width: 32, height: 32, objectFit: "cover", borderRadius: 4 }}
-            />
-          ) : (
-            "📎"
-          )}
-        </a>
+        <span key={a.key} className="attachment-thumb">
+          <a href={a.url} target="_blank" rel="noreferrer" title={a.filename}>
+            {a.url && a.filename?.match(/\.(jpe?g|png|gif|webp)$/i) ? (
+              <img
+                src={a.url}
+                alt={a.filename}
+                style={{ width: 32, height: 32, objectFit: "cover", borderRadius: 4 }}
+              />
+            ) : (
+              "📎"
+            )}
+          </a>
+          <button
+            type="button"
+            className="attachment-remove"
+            title={`Poista liite ${a.filename}`}
+            aria-label={`Poista liite ${a.filename}`}
+            onClick={() => handleDelete(a)}
+            disabled={deletingKey === a.key}
+          >
+            ×
+          </button>
+        </span>
       ))}
       <label className="btn btn-secondary" style={{ padding: "4px 8px", fontSize: "0.8rem", cursor: "pointer" }}>
         {uploading ? "Ladataan…" : "+ Kuva"}

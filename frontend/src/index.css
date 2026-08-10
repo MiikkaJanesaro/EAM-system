@@ -194,6 +194,28 @@ a {
   margin: 0;
 }
 
+.list-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 12px;
+}
+
+.search-input {
+  width: 100%;
+  max-width: 280px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  font-size: 0.92rem;
+  background: #fff;
+  color: var(--ink);
+}
+
+.search-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
 .breadcrumb {
   font-size: 0.8rem;
   color: var(--ink-soft);
@@ -353,6 +375,20 @@ thead th {
   background: #fafbfc;
 }
 
+th.sortable-header {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+th.sortable-header:hover {
+  color: var(--ink);
+}
+
+.sort-arrow {
+  font-size: 0.7em;
+}
+
 tbody td {
   padding: 14px 18px;
   border-bottom: 1px solid var(--border);
@@ -380,6 +416,33 @@ tbody tr:hover {
 
 .row-title {
   font-weight: 600;
+}
+
+.attachment-thumb {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.attachment-remove {
+  border: none;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 4px;
+}
+
+.attachment-remove:hover {
+  background: var(--status-overdue-bg);
+  color: var(--status-overdue);
+}
+
+.attachment-remove:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .row-sub {

@@ -3,7 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../api/client.js";
 import { StatusPill } from "../components/StatusPill.jsx";
 import { Modal } from "../components/Modal.jsx";
+import { SearchInput } from "../components/SearchInput.jsx";
+import { SortableHeader } from "../components/SortableHeader.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
+import { useTableControls } from "../hooks/useTableControls.js";
 
 const EMPTY_FORM = {
   name: "",
@@ -38,6 +41,14 @@ export function Assets() {
   useEffect(load, []);
 
   const locationName = (id) => locations.find((l) => l.id === id)?.name || "—";
+
+  const { search, setSearch, sortKey, sortDir, toggleSort, items: visibleAssets } = useTableControls(
+    assets,
+    {
+      searchFields: ["name", "type", "serialNumber", (a) => locationName(a.locationId)],
+      sortAccessors: { location: (a) => locationName(a.locationId) },
+    }
+  );
 
   async function handleCreate(e) {
     e.preventDefault();
@@ -75,32 +86,41 @@ export function Assets() {
           {isAdmin ? "Ei vielä työkoneita. Lisää ensimmäinen yllä olevasta napista." : "Ei vielä työkoneita."}
         </div>
       ) : (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Nimi</th>
-                <th>Tyyppi</th>
-                <th>Toimipaikka</th>
-                <th>Sarjanumero</th>
-                <th>Tila</th>
-              </tr>
-            </thead>
-            <tbody>
-              {assets.map((a) => (
-                <tr key={a.id} onClick={() => navigate(`/assets/${a.id}`)}>
-                  <td className="row-title">{a.name}</td>
-                  <td>{a.type}</td>
-                  <td>{locationName(a.locationId)}</td>
-                  <td className="mono">{a.serialNumber}</td>
-                  <td>
-                    <StatusPill status={a.status} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <>
+          <div className="list-toolbar">
+            <SearchInput value={search} onChange={setSearch} placeholder="Hae työkoneita…" />
+          </div>
+          {visibleAssets.length === 0 ? (
+            <div className="empty-state">Ei hakua vastaavia työkoneita.</div>
+          ) : (
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <SortableHeader label="Nimi" sortKey="name" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                    <SortableHeader label="Tyyppi" sortKey="type" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                    <SortableHeader label="Toimipaikka" sortKey="location" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                    <SortableHeader label="Sarjanumero" sortKey="serialNumber" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                    <SortableHeader label="Tila" sortKey="status" currentKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleAssets.map((a) => (
+                    <tr key={a.id} onClick={() => navigate(`/assets/${a.id}`)}>
+                      <td className="row-title">{a.name}</td>
+                      <td>{a.type}</td>
+                      <td>{locationName(a.locationId)}</td>
+                      <td className="mono">{a.serialNumber}</td>
+                      <td>
+                        <StatusPill status={a.status} />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
 
       {showModal && (
